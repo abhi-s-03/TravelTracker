@@ -15,10 +15,8 @@ import {
   Award,
   TrendingUp,
   X,
-  Star,
-  Map
+  Star
 } from 'lucide-react';
-import { LocalStreetMap } from './LocalStreetMap';
 import confetti from 'canvas-confetti';
 
 interface Globe3DProps {
@@ -27,18 +25,13 @@ interface Globe3DProps {
 
 const SUB_NATIONAL_MAPS: Record<string, string> = {
   US: 'us-states',
-  IN: 'india',
   CA: 'canada',
-  JP: 'japan',
-  DE: 'germany',
-  BR: 'brazil',
-  CN: 'china',
-  FR: 'france',
-  IT: 'italy',
-  ES: 'spain',
-  AU: 'australia',
-  MX: 'mexico',
-  RU: 'russia',
+  BR: 'brazil-states',
+  FR: 'france-departments',
+  IT: 'italy-regions',
+  ES: 'spain-provinces',
+  NL: 'the-netherlands',
+  IE: 'ireland-counties'
 };
 
 // Ray-casting point in polygon algorithm to color states dynamically
@@ -153,10 +146,6 @@ export const Globe3D: React.FC<Globe3DProps> = ({ onSelectPlace }) => {
   const [activeDrillDownCountry, setActiveDrillDownCountry] = useState<string | null>(null);
   const [drillDownGeoJson, setDrillDownGeoJson] = useState<any>(null);
   
-  // High fidelity view swapping
-  const [isLocalMapActive, setIsLocalMapActive] = useState(false);
-  const [localMapCoords, setLocalMapCoords] = useState<{ lat: number; lng: number } | null>(null);
-
   // Layer switches: 'satellite' | 'heatmap'
   const [globeLayerMode, setGlobeLayerMode] = useState<'satellite' | 'heatmap'>('satellite');
 
@@ -283,13 +272,15 @@ export const Globe3D: React.FC<Globe3DProps> = ({ onSelectPlace }) => {
     }
   }, [rotationActive]);
 
-  // Load Sub-National State Boundaries on demand
   const loadStateBoundaries = async (countryCode: string) => {
     const slug = SUB_NATIONAL_MAPS[countryCode];
     if (!slug) return;
 
     try {
       const res = await fetch(`https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/${slug}.geojson`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
       const data = await res.json();
       setDrillDownGeoJson(data);
       setActiveDrillDownCountry(countryCode);
@@ -332,7 +323,7 @@ export const Globe3D: React.FC<Globe3DProps> = ({ onSelectPlace }) => {
         .hexBinResolution(4)
         .hexMargin(0.12)
         .hexTopColor(() => '#06b6d4')
-        .hexBottomColor(() => 'rgba(6, 182, 212, 0.1)')
+        .hexSideColor(() => 'rgba(6, 182, 212, 0.1)')
         .hexAltitude(({ sumWeight }: any) => Math.min(sumWeight * 0.045, 0.5));
       
       return; // Stop rendering other layers in heatmap mode
@@ -628,23 +619,6 @@ export const Globe3D: React.FC<Globe3DProps> = ({ onSelectPlace }) => {
 
   return (
     <div className="relative w-full h-full">
-      {/* ── Street-level 2D Map Hyper-Zoom Overlay ────────────────────────── */}
-      {isLocalMapActive && localMapCoords && (
-        <div className="absolute inset-0 w-full h-full z-40 bg-[#030712]">
-          <LocalStreetMap
-            latitude={localMapCoords.lat}
-            longitude={localMapCoords.lng}
-            onExit={() => {
-              setIsLocalMapActive(false);
-              setLocalMapCoords(null);
-              // Pan globe slightly back to zoom level
-              globeInstance.current?.pointOfView({ altitude: 1.4 }, 800);
-            }}
-            onSelectPlace={onSelectPlace}
-          />
-        </div>
-      )}
-
       {/* Main 3D Globe target element */}
       <div ref={containerRef} className="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing" />
 
@@ -882,24 +856,6 @@ export const Globe3D: React.FC<Globe3DProps> = ({ onSelectPlace }) => {
           <Layers className="w-4 h-4" />
           <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
             {globeLayerMode === 'satellite' ? 'Layers' : '3D Columns'}
-          </span>
-        </button>
-
-        {/* Manual Local 2D Map Toggle */}
-        <button
-          onClick={() => {
-            const pov = globeInstance.current?.pointOfView();
-            if (pov) {
-              setLocalMapCoords({ lat: pov.lat, lng: pov.lng });
-              setIsLocalMapActive(true);
-            }
-          }}
-          className="p-2 rounded-xl text-slate-400 hover:bg-white/5 border border-transparent hover:text-slate-200 cursor-pointer transition-all flex items-center gap-1.5"
-          title="Open Local 2D Map"
-        >
-          <Map className="w-4 h-4" />
-          <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
-            2D Map
           </span>
         </button>
       </div>
