@@ -119,7 +119,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   theme: 'glass',
-  globeStyle: 'stylized',
+  globeStyle: 'realistic',
   defaultVisibility: 'friends',
 };
 
