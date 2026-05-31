@@ -64,20 +64,89 @@ VITE_GROQ_API_KEY=gsk_your-groq-api-key
 
 ## 💾 Supabase Database Setup
 
-Run the following SQL queries inside your **Supabase SQL Editor** to configure your database schema and enable public storage policies for travel photos:
+Run the following consolidated SQL query inside your **Supabase SQL Editor** to automatically spin up all tables (`place_logs`, `wishlists`, `ai_memories`), enable Row-Level Security (RLS) policies, configure the public storage bucket for travel photos, and write storage access rules:
 
 ```sql
--- 1. Extend place_logs table mapping
-ALTER TABLE place_logs
-  ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS photo_external_url TEXT DEFAULT NULL;
+-- 1. Create Place Logs table
+CREATE TABLE IF NOT EXISTS place_logs (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL,
+  place_name TEXT NOT NULL,
+  place_type TEXT NOT NULL,
+  country_code VARCHAR(2) NOT NULL,
+  country_name TEXT NOT NULL,
+  state_name TEXT,
+  city_name TEXT,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  visited_at DATE,
+  visited_at_end DATE,
+  visit_count INT DEFAULT 1,
+  rating INT,
+  notes TEXT,
+  tags TEXT[],
+  visibility VARCHAR(10) DEFAULT 'friends',
+  ai_memory_id TEXT,
+  photo_url TEXT DEFAULT NULL,
+  photo_external_url TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ
+);
 
--- 2. Create the storage bucket for travel photos
+-- Enable Row Level Security (RLS) so users only manage their own data
+ALTER TABLE place_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own place logs" ON place_logs
+  FOR ALL TO authenticated USING (auth.uid() = user_id);
+
+-- 2. Create Wishlists table
+CREATE TABLE IF NOT EXISTS wishlists (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL,
+  place_name TEXT NOT NULL,
+  place_type TEXT,
+  country_code VARCHAR(2) NOT NULL,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  priority INT DEFAULT 2,
+  notes TEXT,
+  ai_suggestion_source TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ
+);
+
+ALTER TABLE wishlists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own wishlist" ON wishlists
+  FOR ALL TO authenticated USING (auth.uid() = user_id);
+
+-- 3. Create AI Memories table
+CREATE TABLE IF NOT EXISTS ai_memories (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL,
+  entity_type VARCHAR(15) NOT NULL,
+  entity_id TEXT NOT NULL,
+  memory_type VARCHAR(20) NOT NULL,
+  prompt_used TEXT NOT NULL,
+  generated_text TEXT NOT NULL,
+  user_edited_text TEXT,
+  model_used TEXT NOT NULL,
+  generated_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ,
+  mood VARCHAR(20)
+);
+
+ALTER TABLE ai_memories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own memories" ON ai_memories
+  FOR ALL TO authenticated USING (auth.uid() = user_id);
+
+-- 4. Create the storage bucket for travel photos
 INSERT INTO storage.buckets (id, name, public)
   VALUES ('place-photos', 'place-photos', true)
   ON CONFLICT DO NOTHING;
 
--- 3. Storage Security Policies
+-- 5. Storage Security Policies
 CREATE POLICY "Users can upload their own photos"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'place-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
